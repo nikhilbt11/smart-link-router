@@ -9,6 +9,8 @@ function toPlainExcerpt(markdown: string, maxLength = 160): string {
     .replace(/`[^`]*`/g, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
     .replace(/\[[^\]]*\]\([^)]*\)/g, " ")
+    // Keep excerpts readable by removing any raw HTML-like fragments.
+    .replace(/<[^>]*>/g, " ")
     .replace(/[#>*_~\-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
