@@ -29,10 +29,24 @@ app.use(cors({ origin: env.frontendUrl, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-app.use('/api', healthRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/links', adminAuth, linkRoutes);
-app.use('/api/analytics', adminAuth, analyticsRoutes);
+// 1. PLACE THIS MIDDLEWARE BEFORE ALL ROUTES
+app.use(async (req, res, next) => {
+  try {
+    const connectDB = require("./config/db");
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("DB Middleware Error:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Database connection failed" });
+  }
+});
+
+app.use("/api", healthRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/links", adminAuth, linkRoutes);
+app.use("/api/analytics", adminAuth, analyticsRoutes);
 // Not wrapped in adminAuth here — blog.routes.js protects admin endpoints
 // individually so its public /published and /slug/:slug routes stay open.
 app.use('/api/blogs', blogRoutes);
