@@ -1,22 +1,40 @@
 const mongoose = require('mongoose');
 const env = require('./env');
 
-async function connectDB() {
-  mongoose.connection.on('error', (err) => {
-    console.error('[MongoDB] connection error:', err.message);
-  });
+// Cache the connection across hot reloads / serverless invocations
+let cached = global.mongoose;
 
-  mongoose.connection.on('disconnected', () => {
-    console.warn('[MongoDB] disconnected');
-  });
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
+async function connectDB() {
+  // If a connection exists and is ready, reuse it
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  // If a connection attempt is already in progress, wait for it
+  if (!cached.promise) {
+    const opts = {
+      bufferCommands: false, // Prevents hanging queries if connection isn't ready
+    };
+
+    cached.promise = mongoose.connect(env.mongodbUri, opts).then((mongooseInstance) => {
+      console.log(`[MongoDB] connected: ${mongooseInstance.connection.host}/${mongooseInstance.connection.name}`);
+      return mongooseInstance;
+    });
+  }
 
   try {
-    await mongoose.connect(env.mongodbUri);
-    console.log(`[MongoDB] connected: ${mongoose.connection.host}/${mongoose.connection.name}`);
+    cached.conn = await cached.promise;
   } catch (err) {
-    console.error('[MongoDB] initial connection failed:', err.message);
+    cached.promise = null; // Reset promise so next attempt can retry
+    console.error('[MongoDB] connection failed:', err.message);
     throw err;
   }
+
+  return cached.conn;
 }
 
 module.exports = connectDB;
